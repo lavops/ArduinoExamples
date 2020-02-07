@@ -1,0 +1,77 @@
+body
+{
+	background-color: blue;
+	font-family: arial;
+	color: white;
+	text-align: center;
+}
+
+#content
+{
+	background-color: yellow;
+	color: black;
+	width: 600px;
+	height: 500px;
+	position: relative;
+	margin: auto;
+	border-radius: 10px;
+	padding: 10px;
+}
+
+input
+{
+	width: 400px;
+}
+
+button
+{
+	margin: 10px;
+}
+
+fieldset
+{
+	border-radius: 10px;
+	
+}
+
+#result
+{
+	width: 400px;
+	height: 30px;
+	background-color: blue;
+	color: yellow;
+	margin-left: auto;
+	margin-right: auto;
+	margin-top: 10px;
+	border-radius: 10px;
+	padding-top: 7px;
+	font-size: 20px;
+}
+
+#grafik
+{
+	background-color: blue;
+	color: yellow;
+	width: 500px;
+	height: 300px;
+	position: relative;
+	margin: auto;
+	border-radius: 10px;
+	padding: 10px;
+}
+
+#daPlot
+{
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	z-index: 2;
+}
+
+#daPlot
+{
+	position: absolute;
+	left: 2px;
+	top: 2px;
+	z-index: 1;
+}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>IoT 2020 januar</title>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" type="text/css" href="index.css">
+		<script src="socket.io/socket.io.js"></script>
+		<script type="text/javascript" src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+		<style>
+			span{
+				color: yellow;
+			}
+		</style>		
+	</head>
+	<body >
+		<h1>IoT 2020 januarr</h1>
+		<h2>Djordje Milicevic 79/2016</h2>
+		<div id="content">
+			<fieldset>			
+				<legend>PCF 8591 setup</legend>
+				Broj tacaka
+                <select id="tacke">
+					<script>
+						for (var i = 5; i <= 255; i+=5)
+							document.write("<option>" + i + "</option>");
+					</script>
+    			</select>
+				Interval odabiranja(mS)
+				<select id="miliSek">
+					<script>
+						for (var i = 20; i <= 1000; i+=20)
+						document.write("<option value="+i+">" + i + "</option>");
+					</script>
+    			</select>
+				<button id="start">Start</button>
+			</fieldset>
+			R E S U L T <br/><br/>
+			<div id="grafik"></div>
+			<input id="ad" type="checkbox" checked value="ad"/>ad
+			<input id="da" type="checkbox" checked value="da"/>da
+		</div>
+	</body>
+	<script>
+		var ad = document.getElementById("ad");
+		var da = document.getElementById("da");
+
+	    var trenutnaTacka = 0;
+		var pomeraj = 0;
+		var tacke = document.getElementById("tacke")
+		var kolikoIzabranoTacaka = tacke.value
+		var cekanje = document.getElementById("miliSek")
+		var kolikoIzabranoSekundi = cekanje.value
+		var socket = io.connect(location.host + "/arduino");
+		var button = document.getElementById("start");
+		var grafik = document.getElementById("grafik");
+		var rezultat
+		var zahtev = function()
+		{
+			kolikoIzabranoSekundi = cekanje.value;
+			kolikoIzabranoTacaka = tacke.value;
+			grafik.innerHTML="";
+            trenutnaTacka=0;
+			pomeraj = 0;
+			socket.emit("posalji", {"komanda": kolikoIzabranoTacaka + " " + kolikoIzabranoSekundi});
+		}
+
+		button.addEventListener("click", zahtev);
+		ad.addEventListener("click", zahtev);
+		da.addEventListener("click", zahtev);
+		
+		
+
+		socket.on('rezultat', function(msg)
+		{
+			var krstic,zvezdica;
+			krstic = msg.komanda.split(" ")[0];
+			zvezdica = msg.komanda.split(" ")[1];
+			console.log(krstic + " " +zvezdica)
+			var spanKrstic = document.createElement('span')
+			var spanZvezdica = document.createElement('span')
+			spanKrstic.innerHTML="+";
+			spanZvezdica.innerHTML="*";
+			spanKrstic.style.position = "absolute"
+			spanKrstic.style.bottom = krstic+"px"
+			spanKrstic.style.left = pomeraj+"px"
+			spanZvezdica.style.position = "absolute"
+			spanZvezdica.style.bottom = zvezdica+"px"
+			spanZvezdica.style.left = pomeraj+"px"
+			pomeraj = pomeraj + 500/(kolikoIzabranoTacaka*2);
+			if(ad.checked)
+				grafik.appendChild(spanKrstic)
+			if(da.checked)
+				grafik.appendChild(spanZvezdica)
+		});
+	</script>
+</html>
