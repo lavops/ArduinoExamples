@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+    <head>
+		<title>IoT 2 Kolokvijum 2020</title>
+        <meta charset="UTF-8">
+        <script src="socket.io/socket.io.js"></script>
+		<link rel="stylesheet" type="text/css" href="index.css">
+    </head>
+    <body>
+        <h1>IoT 2 kolokvijum 2020</h1>
+		<div id="content">
+            <img width="100" src="bulpOff.png" id="image"/>
+            <fieldset >
+				<legend>temperature</legend>
+                <p id="temperature" style="font-size:20px;color:white" id="temperature">t1: 21C t2: 15C</p>
+            </fieldset>
+        </div>
+    </body>
+    <script>
+        var socket=io.connect(location.host+"/arduino");
+
+        socket.on('obrada',function(msg){
+            document.getElementById("temperature").innerHTML="t1: " + msg.temp1 + "C t2: " + msg.temp2 + "C";
+            document.getElementById("image").src="bulpOn.png";
+            setTimeout(() => {  document.getElementById("image").src="bulpOff.png"; }, 2000);
+        });
+
+
+    </script>
+</html>
