@@ -1,169 +1,60 @@
 #include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ESP8266WiFiMulti.h> 
-#include <ESP8266mDNS.h>
 #include <ESP8266WebServer.h>
-#include <DHTesp.h>
-ESP8266WiFiMulti wifiMulti;
+#include <ArduinoJson.h>
 
-ESP8266WebServer server(80);
+ESP8266WebServer server;
+char* ssid = "Ne Kradi WiFi";
+char* password = "";
 
-//LED
-const int led = 2;
-boolean sijalica = false;
+int sijalica;
 
-//Ultrasonic
-#define trigPin 5
-#define echoPin 16
-String udaljenostStr;
-String udaljenostVal;
-
-//Potenciometar
-int levi = 0, desni = 4, stanje = 0, faza = 0, brojac = 0;
-const int brojacMax = 100, brojacMin = 0;
-boolean levo, desno, smer;
-
-//DHT11
-DHTesp dht;
-int temp, humi;
-
-//Funkcije za stranice
-void handleRoot(); 
-void handleLED(); //pali gasi LED
-void handleDHT(); //Ocitaj temp
-void handlePOT(); //Potenciometar
-void handleULT(); //Ultrasonicni senzor
-void handleNotFound();
-
-void setup(void){
+void setup() {
+  WiFi.begin(ssid,password);
   Serial.begin(9600);
-  delay(10);
-  Serial.println('\n');
-  //otvori pinove
-  pinMode(led, OUTPUT); //2
-  pinMode(trigPin, OUTPUT); //5
-  pinMode(echoPin, INPUT); //16
-  pinMode(levi,INPUT); //4
-  pinMode(desni, INPUT); //0
-  dht.setup(14, DHTesp::DHT11);
-  ///
-  wifiMulti.addAP("Ne Kradi WiFi", "");
-
-  Serial.println("Connecting ...");
-  int i = 0;
-  while (wifiMulti.run() != WL_CONNECTED) {
-    delay(250);
-    Serial.print('.');
+  while(WiFi.status() != WL_CONNECTED){
+    Serial.print(".");
+    delay(500);
   }
-  Serial.println('\n');
-  Serial.print("Connected to ");
-  Serial.println(WiFi.SSID());              
-  Serial.print("IP address:\t");
-  Serial.println(WiFi.localIP());           
-
-  if (MDNS.begin("esp8266")) {              
-    Serial.println("mDNS responder started");
-  } else {
-    Serial.println("Error setting up MDNS responder!");
-  }
-
+  Serial.println("");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+  //server.on("/",handleIndex);
   server.on("/", HTTP_GET, handleRoot);
   server.on("/LED", HTTP_GET, handleLED);
   server.on("/LEDaction", HTTP_POST, handleLEDaction);
   server.on("/POT",HTTP_GET, handlePOT);
   server.on("/ULT",HTTP_GET, handleULT);
   server.on("/DHT",HTTP_GET, handleDHT);
-  server.onNotFound(handleNotFound);
-
   server.begin();
-  Serial.println("HTTP server started");
 }
 
-void loop(void){
+void loop() {
   server.handleClient();
-  //Ultrasonic distance
-  //ultrasonic();
-  //
-  potenciometar();
 }
 
-void ultrasonic(){
-  long duration, distance;
-  digitalWrite(trigPin, LOW);  
-  delayMicroseconds(2); 
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10); 
-  digitalWrite(trigPin, LOW);
-  duration = pulseIn(echoPin, HIGH);
-  distance = (duration/2) / 29.1;
-  if (distance >= 200 || distance <= 4)
-  {
-    Serial.println("Out of range");
-    udaljenostStr = "Out of range";
-    udaljenostVal = "0";
-  }
-  else 
-  {
-    udaljenostStr = String(distance) + " cm";
-    udaljenostVal = String(distance);
-    Serial.print(distance);
-    Serial.println(" cm");
-  }
-}
-
-void potenciometar(){
-  levo = digitalRead(levi);
-  desno = digitalRead(desni);
-
-  if(levo && desno && faza != 3)
-    faza = 0;
-    
-  if(levo && desno && faza == 3)
-  {
-    faza = 0;
-    if(smer)
-    {
-      if(brojac < brojacMax)
-        brojac++;      
+void handleIndex(){
+  DynamicJsonDocument doc(1024);
+  int gas = 0, distance = 0;
+  doc["type"] = "request";
+  serializeJson(doc,Serial);
+  boolean messageReady = false;
+  String message = "";
+  while(messageReady == false){
+    if(Serial.available()){
+      message = Serial.readString();
+      messageReady = true;
     }
-    else
-      if(brojac > brojacMin)
-        brojac--;      
-
-    Serial.println(brojac);
   }
-  
-  if(faza == 0 && !levo && desno)
-  {
-    smer = false;
-    faza = 1;
+  DeserializationError error = deserializeJson(doc,message);
+  if(error){
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
   }
-
-  if(faza == 0 && levo && !desno)
-  {
-    smer = true;
-    faza = 1;
-  }
-
-  if(faza == 1 && !levo && !desno)
-    faza = 2;
-
-  if(faza == 2 && !smer && levo && !desno)
-    faza = 3;
-
-  if(faza == 2 && smer && !levo && desno)
-    faza = 3;
-
-  delay(1);
-}
-
-void readDHT(){
-  delay(dht.getMinimumSamplingPeriod());
-  temp = (int)dht.getTemperature();
-  humi = (int)dht.getHumidity();
- 
-  Serial.println("Temp: " + String(temp) + " C");
-  Serial.println("Humidity: " + String(humi) + " %");
+  distance = doc["distance"];
+  gas = doc["gas"];
+  String output = "distance: " + String(distance) + " gas:" + String(gas);
+  server.send(200,"text/plain",output);
 }
 
 void handleRoot() {
@@ -184,6 +75,26 @@ void handleRoot() {
 }
 
 void handleLED(){
+  DynamicJsonDocument doc(1024);
+  doc["type"] = "request";
+  doc["senzor"] = "readLED";
+  serializeJson(doc,Serial);
+  boolean messageReady = false;
+  String message = "";
+  while(messageReady == false){
+    if(Serial.available()){
+      message = Serial.readString();
+      messageReady = true;
+    }
+  }
+  DeserializationError error = deserializeJson(doc,message);
+  if(error){
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+  }
+  sijalica = doc["LED"];
+  //HTML DEO
   String pocetna = "<!DOCTYPE html><html><head>";
   pocetna += "<title>IoT 2020 februar</title>";
   //pocetna += "<meta http-equiv="refresh" content="30">"
@@ -196,8 +107,8 @@ void handleLED(){
   pocetna += "<br><form action=\"/\" method=\"GET\" style=\"display: inline;\"><input type=\"submit\" value=\"Nazad\">&nbsp</form>";
   pocetna += "<h4>Studenti:</h4><p>Djordje Milicevic 79-2016, Nikola Bojovic 46-2016,</br>Nikola Bacanin 47-2016, Igor Stevanovic 94-2016</p>";
   pocetna += "</div></body>";
-  pocetna += "<script>";
-  pocetna += "if("+String(sijalica)+") {document.getElementById(\"image\").src=\"https://pluspng.com/img-png/light-bulb-png-light-bulb-png-file-png-image-1200.png\";";
+  pocetna += "<script>console.log("+String(sijalica)+");";
+  pocetna += "if("+String(sijalica)+" == 1) {document.getElementById(\"image\").src=\"https://pluspng.com/img-png/light-bulb-png-light-bulb-png-file-png-image-1200.png\";";
   pocetna += "document.getElementById(\"promena\").value=\"Turn Off\";}";
   pocetna += "else {document.getElementById(\"image\").src=\"https://i.ya-webdesign.com/images/light-bulb-on-off-png-4.png\";";
   pocetna += "document.getElementById(\"promena\").value=\"Turn On\";}";
@@ -207,15 +118,50 @@ void handleLED(){
 }
 
 void handleLEDaction() {
-  digitalWrite(led,!digitalRead(led));
-  sijalica = !sijalica;
-  
+  DynamicJsonDocument doc(1024);
+  doc["type"] = "request";
+  doc["senzor"] = "changeLED";
+  serializeJson(doc,Serial);
+  boolean messageReady = false;
+  String message = "";
+  while(messageReady == false){
+    if(Serial.available()){
+      message = Serial.readString();
+      messageReady = true;
+    }
+  }
+  DeserializationError error = deserializeJson(doc,message);
+  if(error){
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+  }
+  sijalica = doc["LED"];
   server.sendHeader("Location","/LED");
   server.send(303);
 }
 
 void handlePOT() {
-  potenciometar();
+  DynamicJsonDocument doc(1024);
+  doc["type"] = "request";
+  doc["senzor"] = "potenciometar";
+  serializeJson(doc,Serial);
+  boolean messageReady = false;
+  String message = "";
+  while(messageReady == false){
+    if(Serial.available()){
+      message = Serial.readString();
+      messageReady = true;
+    }
+  }
+  DeserializationError error = deserializeJson(doc,message);
+  if(error){
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+  }
+  int brojac = doc["brojac"];
+  //HTML DEO
   String pocetna = "<!DOCTYPE html><html><head>";
   pocetna += "<title>IoT 2020 februar</title>";
   pocetna += "<meta http-equiv=\"refresh\" content=\"1\">";
@@ -242,7 +188,27 @@ void handlePOT() {
 }
 
 void handleDHT() {
-  readDHT();
+  DynamicJsonDocument doc(1024);
+  doc["type"] = "request";
+  doc["senzor"] = "DHT";
+  serializeJson(doc,Serial);
+  boolean messageReady = false;
+  String message = "";
+  while(messageReady == false){
+    if(Serial.available()){
+      message = Serial.readString();
+      messageReady = true;
+    }
+  }
+  DeserializationError error = deserializeJson(doc,message);
+  if(error){
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+  }
+  int temp = doc["temp"];
+  int humi = doc["humi"];
+  //HTML DEO
   String pocetna = "<!DOCTYPE html><html><head>";
   pocetna += "<title>IoT 2020 februar</title>";
   pocetna += "<meta http-equiv=\"refresh\" content=\"5\">";
@@ -279,7 +245,26 @@ void handleDHT() {
 }
 
 void handleULT() {
-  ultrasonic();
+  DynamicJsonDocument doc(1024);
+  doc["type"] = "request";
+  doc["senzor"] = "ultrasonic";
+  serializeJson(doc,Serial);
+  boolean messageReady = false;
+  String message = "";
+  while(messageReady == false){
+    if(Serial.available()){
+      message = Serial.readString();
+      messageReady = true;
+    }
+  }
+  DeserializationError error = deserializeJson(doc,message);
+  if(error){
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.c_str());
+      return;
+  }
+  int udaljenostVal = doc["distance"];
+  //HTML DEO
   String pocetna = "<!DOCTYPE html><html><head>";
   pocetna += "<title>IoT 2020 februar</title>";
   pocetna += "<meta http-equiv=\"refresh\" content=\"2\">";
@@ -287,10 +272,10 @@ void handleULT() {
   pocetna += "<div style=\"background-color: yellow;color: black;width: 600px;height: 350px;position: relative;margin: auto;border-radius: 10px;padding: 10px;\">";
   pocetna += "<h1>IOT seminarski rad NodeMCU</h1>";
   pocetna += "<h2>Ultrasonic Distance Detector</h2>";
-  pocetna += "<p>" + udaljenostStr + "</p>";
-  pocetna += "<input type=\"hidden\" name=\"vrednost\" id=\"vrednost\" value=\""+udaljenostVal+"\">";
-  pocetna += "<p id=\"crtaj\">START||END("+udaljenostVal+")</p>";
-  pocetna += "<meter style=\"width: 300px;\" id=\"metar\" min=\"0\" low=\"20\" high=\"95\" max=\"100\" value=\""+udaljenostVal+"\"></meter></br>";
+  pocetna += "<p>" + String(udaljenostVal) + " cm</p>";
+  pocetna += "<input type=\"hidden\" name=\"vrednost\" id=\"vrednost\" value=\""+String(udaljenostVal)+"\">";
+  pocetna += "<p id=\"crtaj\">START||END("+String(udaljenostVal)+")</p>";
+  pocetna += "<meter style=\"width: 300px;\" id=\"metar\" min=\"0\" low=\"20\" high=\"95\" max=\"100\" value=\""+String(udaljenostVal)+"\"></meter></br>";
   pocetna += "<form action=\"/\" method=\"GET\" style=\"display: inline;\"><input type=\"submit\" value=\"Nazad\">&nbsp</form>";
   pocetna += "<h4>Studenti:</h4><p>Djordje Milicevic 79-2016, Nikola Bojovic 46-2016,</br>Nikola Bacanin 47-2016, Igor Stevanovic 94-2016</p>";
   pocetna += "</div></body>";
@@ -298,7 +283,7 @@ void handleULT() {
   pocetna += "function crtaj(){ var vrednost = document.getElementById(\"vrednost\").value; console.log(vrednost);";
   pocetna += "var crtaj = document.getElementById(\"crtaj\").innerHTML; crtaj = \"START|\";";
   pocetna += "for(var i = 1; i<=vrednost;i++) crtaj+=\"-\";";
-  pocetna += "crtaj+=\"|END("+udaljenostVal+")\"; document.getElementById(\"crtaj\").innerHTML = crtaj;} crtaj();";
+  pocetna += "crtaj+=\"|END("+String(udaljenostVal)+")\"; document.getElementById(\"crtaj\").innerHTML = crtaj;} crtaj();";
   pocetna += "</script></html>";
   server.send(200, "text/html", pocetna);
 }
